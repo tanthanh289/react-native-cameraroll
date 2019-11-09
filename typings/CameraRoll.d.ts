@@ -26,6 +26,7 @@ declare namespace CameraRoll {
     groupName?: string;
     assetType?: AssetType;
     mimeTypes?: Array<string>;
+    includeExif?: boolean;
   }
 
   interface PhotoIdentifier {
@@ -47,6 +48,13 @@ declare namespace CameraRoll {
         altitude?: number,
         heading?: number,
         speed?: number,
+      },
+      exif?: {
+        latitude?: number,
+        longitude?: number,
+        datetime?: string,
+        datetimeOriginal?: string,
+        orientation?: string,
       },
     };
   }
