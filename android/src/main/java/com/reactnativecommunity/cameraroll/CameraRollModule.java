@@ -12,6 +12,7 @@ import android.content.Context;
 import android.content.res.AssetFileDescriptor;
 import android.database.Cursor;
 import android.graphics.BitmapFactory;
+import android.media.ExifInterface;
 import android.media.MediaMetadataRetriever;
 import android.media.MediaScannerConnection;
 import android.net.Uri;
@@ -23,7 +24,6 @@ import android.text.TextUtils;
 
 import com.facebook.common.logging.FLog;
 import com.facebook.react.bridge.GuardedAsyncTask;
-import com.facebook.react.bridge.JSApplicationIllegalArgumentException;
 import com.facebook.react.bridge.NativeModule;
 import com.facebook.react.bridge.Promise;
 import com.facebook.react.bridge.ReactApplicationContext;
@@ -216,6 +216,7 @@ public class CameraRollModule extends ReactContextBaseJavaModule {
     ReadableArray mimeTypes = params.hasKey("mimeTypes")
         ? params.getArray("mimeTypes")
         : null;
+    boolean includeExif = params.hasKey("includeExif") && params.getBoolean("includeExif");
 
     new GetMediaTask(
           getReactApplicationContext(),
@@ -224,6 +225,7 @@ public class CameraRollModule extends ReactContextBaseJavaModule {
           groupName,
           mimeTypes,
           assetType,
+          includeExif,
           promise)
           .executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
   }
@@ -236,6 +238,7 @@ public class CameraRollModule extends ReactContextBaseJavaModule {
     private final @Nullable ReadableArray mMimeTypes;
     private final Promise mPromise;
     private final String mAssetType;
+    private final boolean mIncludeExif;
 
     private GetMediaTask(
         ReactContext context,
@@ -244,6 +247,7 @@ public class CameraRollModule extends ReactContextBaseJavaModule {
         @Nullable String groupName,
         @Nullable ReadableArray mimeTypes,
         String assetType,
+        boolean includeExif,
         Promise promise) {
       super(context);
       mContext = context;
@@ -253,6 +257,7 @@ public class CameraRollModule extends ReactContextBaseJavaModule {
       mMimeTypes = mimeTypes;
       mPromise = promise;
       mAssetType = assetType;
+      mIncludeExif = includeExif;
     }
 
     @Override
@@ -313,7 +318,7 @@ public class CameraRollModule extends ReactContextBaseJavaModule {
           mPromise.reject(ERROR_UNABLE_TO_LOAD, "Could not get media");
         } else {
           try {
-            putEdges(resolver, media, response, mFirst);
+            putEdges(resolver, media, response, mFirst, mIncludeExif);
             putPageInfo(media, response, mFirst);
           } finally {
             media.close();
@@ -345,7 +350,8 @@ public class CameraRollModule extends ReactContextBaseJavaModule {
       ContentResolver resolver,
       Cursor media,
       WritableMap response,
-      int limit) {
+      int limit,
+      boolean includeExif) {
     WritableArray edges = new WritableNativeArray();
     media.moveToFirst();
     int idIndex = media.getColumnIndex(Images.Media._ID);
@@ -362,7 +368,7 @@ public class CameraRollModule extends ReactContextBaseJavaModule {
       WritableMap edge = new WritableNativeMap();
       WritableMap node = new WritableNativeMap();
       boolean imageInfoSuccess =
-          putImageInfo(resolver, media, node, idIndex, widthIndex, heightIndex, dataIndex, mimeTypeIndex);
+          putImageInfo(resolver, media, node, idIndex, widthIndex, heightIndex, dataIndex, mimeTypeIndex, includeExif);
       if (imageInfoSuccess) {
         putBasicNodeInfo(media, node, mimeTypeIndex, groupNameIndex, dateTakenIndex);
         putLocationInfo(media, node, longitudeIndex, latitudeIndex);
@@ -398,10 +404,14 @@ public class CameraRollModule extends ReactContextBaseJavaModule {
       int widthIndex,
       int heightIndex,
       int dataIndex,
-      int mimeTypeIndex) {
+      int mimeTypeIndex,
+      boolean includeExif) {
     WritableMap image = new WritableNativeMap();
     Uri photoUri = Uri.parse("file://" + media.getString(dataIndex));
+    File file = new File(media.getString(dataIndex));
+    String strFileName = file.getName();
     image.putString("uri", photoUri.toString());
+    image.putString("filename", strFileName);
     float width = media.getInt(widthIndex);
     float height = media.getInt(heightIndex);
 
@@ -464,6 +474,48 @@ public class CameraRollModule extends ReactContextBaseJavaModule {
     image.putDouble("width", width);
     image.putDouble("height", height);
     node.putMap("image", image);
+
+    if (includeExif) {
+      WritableMap exif = new WritableNativeMap();
+      try {
+        ExifInterface exifInterface = new ExifInterface(file.getPath());
+
+        // get date time
+        try {
+          String datetime = exifInterface.getAttribute(ExifInterface.TAG_DATETIME);
+          if (datetime != null)
+            exif.putString("datetime", datetime);
+          String datetimeOriginal = exifInterface.getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL);
+          if (datetimeOriginal != null)
+            exif.putString("datetimeOriginal", datetimeOriginal);
+        } catch (Exception e) {
+        }
+
+        // get location
+        try {
+          float[] exifLatLng = new float[2];
+          if (exifInterface.getLatLong(exifLatLng)) {
+            exif.putDouble("latitude", exifLatLng[0]);
+            exif.putDouble("longitude", exifLatLng[1]);
+          }
+        } catch (Exception e) {
+        }
+
+        // get orientation
+        try {
+          String orientation = exifInterface.getAttribute(ExifInterface.TAG_ORIENTATION);
+          if (orientation != null)
+            exif.putString("orientation", orientation);
+        } catch (Exception e) {
+        }
+        
+      } catch (IOException e) {
+        FLog.e(ReactConstants.TAG, "Could not get exifTimestamp for " + photoUri.toString(), e);
+      } catch (Exception e) {
+        FLog.e(ReactConstants.TAG, "Could not parse exifTimestamp for " + photoUri.toString(), e);
+      }
+      node.putMap("exif", exif);
+    }
 
     return true;
   }

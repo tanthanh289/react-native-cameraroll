@@ -29,6 +29,7 @@ export interface GetPhotosParams {
   groupName?: string,
   assetType?: AssetType,
   mimeTypes?: Array<string>,
+    includeExif?: boolean;
 }
 
 export interface PhotoIdentifier {
@@ -50,6 +51,13 @@ export interface PhotoIdentifier {
       altitude?: number,
       heading?: number,
       speed?: number,
+      },
+      exif?: {
+        latitude?: number,
+        longitude?: number,
+        datetime?: string,
+        datetimeOriginal?: string,
+        orientation?: string,
     },
   },
 }
