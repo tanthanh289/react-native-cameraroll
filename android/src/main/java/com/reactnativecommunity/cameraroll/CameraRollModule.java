@@ -471,9 +471,6 @@ public class CameraRollModule extends ReactContextBaseJavaModule {
         return false;
       }
     }
-    image.putDouble("width", width);
-    image.putDouble("height", height);
-    node.putMap("image", image);
 
     if (includeExif) {
       WritableMap exif = new WritableNativeMap();
@@ -503,9 +500,28 @@ public class CameraRollModule extends ReactContextBaseJavaModule {
 
         // get orientation
         try {
-          String orientation = exifInterface.getAttribute(ExifInterface.TAG_ORIENTATION);
-          if (orientation != null)
-            exif.putString("orientation", orientation);
+          int rotate = 0;
+          float tmp;
+          int orientation = exifInterface.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
+          switch (orientation) {
+            case ExifInterface.ORIENTATION_ROTATE_270:
+              rotate = 270;
+              tmp = width;
+              width = height;
+              height = tmp;
+              break;
+            case ExifInterface.ORIENTATION_ROTATE_180:
+              rotate = 180;
+              break;
+            case ExifInterface.ORIENTATION_ROTATE_90:
+              rotate = 90;
+              tmp = width;
+              width = height;
+              height = tmp;
+              break;
+          }
+
+          exif.putInt("orientation", orientation);
         } catch (Exception e) {
         }
         
@@ -516,6 +532,10 @@ public class CameraRollModule extends ReactContextBaseJavaModule {
       }
       node.putMap("exif", exif);
     }
+
+    image.putDouble("width", width);
+    image.putDouble("height", height);
+    node.putMap("image", image);
 
     return true;
   }
@@ -534,4 +554,5 @@ public class CameraRollModule extends ReactContextBaseJavaModule {
       node.putMap("location", location);
     }
   }
+
 }
