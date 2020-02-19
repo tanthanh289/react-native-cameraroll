@@ -497,6 +497,13 @@ public class CameraRollModule extends ReactContextBaseJavaModule {
           }
         } catch (Exception e) {
         }
+        
+        // get width, height from exif
+        try {
+          width = exifInterface.getAttributeInt(ExifInterface.TAG_IMAGE_WIDTH, Math.round(width));
+          height = exifInterface.getAttributeInt(ExifInterface.TAG_IMAGE_LENGTH, Math.round(height));
+        } catch (Exception e) {
+        }
 
         // get orientation
         try {
@@ -521,7 +528,7 @@ public class CameraRollModule extends ReactContextBaseJavaModule {
               break;
           }
 
-          exif.putInt("orientation", orientation);
+          exif.putInt("orientation", rotate);
         } catch (Exception e) {
         }
         
